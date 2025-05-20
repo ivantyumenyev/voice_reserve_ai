@@ -5,21 +5,31 @@ from langchain.tools import tool
 from langchain.memory import ConversationBufferMemory
 from typing import List, Dict, Any, Tuple
 from datetime import datetime
+from langsmith import Client
+from langchain.callbacks.tracers import LangChainTracer
+from langchain.callbacks.manager import CallbackManager
 
 from app.config import get_settings
 from app.calendar import ReservationCalendar
 
+def get_langsmith_client():
+    return Client()
 
 class ReservationAgent:
     """Agent for handling restaurant reservations."""
     
     def __init__(self):
         self.settings = get_settings()
+        tracer = LangChainTracer(
+            project_name="restaurant-reservation-agent",
+            client=get_langsmith_client()
+        )
         self.llm = ChatOpenAI(
             api_key=self.settings.openrouter_api_key,
             model="openai/gpt-4o",
             temperature=0.7,
-            base_url="https://openrouter.ai/api/v1"
+            base_url="https://openrouter.ai/api/v1",
+            callbacks=[tracer]
         )
         self.tools = self._create_tools()
         self.agent = self._create_agent()
@@ -107,12 +117,19 @@ def initialize_agent(reservation_params: Dict[str, Any]) -> AgentExecutor:
     """
     settings = get_settings()
     
+    # Configure LangSmith tracing
+    tracer = LangChainTracer(
+        project_name="restaurant-reservation-agent",
+        client=get_langsmith_client()
+    )
+    
     # Initialize LLM with OpenRouter
     llm = ChatOpenAI(
         api_key=settings.openrouter_api_key,
         model="openai/gpt-4o",
         temperature=0.7,
-        base_url="https://openrouter.ai/api/v1"
+        base_url="https://openrouter.ai/api/v1",
+        callbacks=[tracer]
     )
     
     # Create calendar instance
