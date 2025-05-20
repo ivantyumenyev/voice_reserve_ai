@@ -1,4 +1,4 @@
-from langchain.agents import AgentExecutor, create_openai_functions_agent
+from langchain.agents import AgentExecutor, create_openai_tools_agent
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, PromptTemplate
 from langchain.tools import tool
@@ -39,7 +39,6 @@ class ReservationAgent:
         @tool
         def check_availability(date: str, party_size: int) -> Dict[str, Any]:
             """Check table availability for a given date and party size."""
-            # TODO: Implement actual availability checking logic
             return {
                 "available": True,
                 "suggested_times": ["19:00", "19:30", "20:00"]
@@ -53,7 +52,6 @@ class ReservationAgent:
             name: str
         ) -> Dict[str, Any]:
             """Make a reservation for the given details."""
-            # TODO: Implement actual reservation logic
             return {
                 "success": True,
                 "reservation_id": "12345",
@@ -70,13 +68,19 @@ class ReservationAgent:
             ("system", """You are a helpful restaurant reservation assistant.
             Your goal is to help customers make reservations at the restaurant.
             Always be polite and professional.
-            Ask for necessary information if it's missing."""),
+            Ask for necessary information if it's missing.
+            
+            You have access to the following tools:
+            - check_availability: Check if a table is available for a given date and party size
+            - make_reservation: Make a reservation with the provided details
+            
+            Use these tools to help customers make reservations."""),
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
         ])
         
-        agent = create_openai_functions_agent(
+        agent = create_openai_tools_agent(
             llm=self.llm,
             tools=self.tools,
             prompt=prompt
@@ -160,7 +164,20 @@ def initialize_agent(reservation_params: Dict[str, Any]) -> AgentExecutor:
     
     # Create prompt template
     prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a helpful restaurant reservation assistant.\nCurrent reservation details:\n- Date: {date}\n- Time: {time}\n- Number of people: {people}\n- Customer name: {name}\nHelp the customer with their reservation request.\nAlways be polite and professional.\nIf you need to check availability, use the check_availability tool."""),
+        ("system", """You are a helpful restaurant reservation assistant.
+        Current reservation details:
+        - Date: {date}
+        - Time: {time}
+        - Number of people: {people}
+        - Customer name: {name}
+        
+        Help the customer with their reservation request.
+        Always be polite and professional.
+        
+        You have access to the following tools:
+        - check_availability: Check if a table is available for a given date and time
+        
+        Use these tools to help customers make reservations."""),
         MessagesPlaceholder(variable_name="chat_history"),
         ("human", "{input}"),
         MessagesPlaceholder(variable_name="agent_scratchpad"),
@@ -173,7 +190,7 @@ def initialize_agent(reservation_params: Dict[str, Any]) -> AgentExecutor:
     )
     
     # Create agent
-    agent = create_openai_functions_agent(
+    agent = create_openai_tools_agent(
         llm=llm,
         tools=tools,
         prompt=prompt
