@@ -94,7 +94,6 @@ voice-reserve-ai/
 │   ├── test_agent.py       # Agent logic and conversation flow tests
 │   ├── test_langsmith.py   # LangSmith tracing and integration tests
 │   ├── conftest.py         # Test fixtures and environment mocks
-├── test_live.py            # Live agent conversation test
 ├── requirements.txt        # Main dependencies
 ├── requirements-dev.txt    # Development dependencies (pytest, etc.)
 ├── Dockerfile              # Container configuration
@@ -128,7 +127,7 @@ Once the server is running, visit:
   ```bash
   pytest
   ```
-- Test coverage includes agent logic, calendar logic, LangSmith tracing, and live conversation flows.
+- Test coverage includes agent logic, calendar logic, LangSmith tracing, and Retell integration.
 - Use `conftest.py` for fixtures and environment mocks.
 
 ## Docker

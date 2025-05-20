@@ -38,7 +38,7 @@ app.add_middleware(
 agent = ReservationAgent()
 sessions: Dict[str, ReservationSession] = {}
 
-# Создай отдельный логгер для диалогов
+# Create a separate logger for dialog messages
 dialog_logger = logging.getLogger("dialog")
 dialog_logger.setLevel(logging.INFO)
 dialog_handler = logging.StreamHandler()
@@ -58,7 +58,7 @@ class ReservationRequest(BaseModel):
     time: str
     people: int
     name: str
-    phone_number: str  # номер пиццерии
+    phone_number: str  # pizzeria phone number
 
 async def initiate_retell_call(
     api_key: str,
@@ -120,14 +120,14 @@ async def llm_websocket(websocket: WebSocket, call_id: str):
     await websocket.accept()
     # Send initial empty message so the user (pizzeria) can speak first
     initial_response = {"content": "", "content_complete": True}
-    # logging.info(f"Sending to Retell: {initial_response}")  # Убираем технический шум
+    # logging.info(f"Sending to Retell: {initial_response}")  # Remove technical noise
     await websocket.send_json(initial_response)
     session = None
     try:
         while True:
             try:
                 data = await websocket.receive_json()
-                # logging.info(f"Received JSON from Retell: {data}")  # Убираем технический шум
+                # logging.info(f"Received JSON from Retell: {data}")  # Remove technical noise
             except Exception as e:
                 logging.error(f"Error receiving JSON: {e}")
                 break
@@ -170,7 +170,7 @@ async def llm_websocket(websocket: WebSocket, call_id: str):
                 await websocket.send_json(error_dict)
                 continue
 
-            # Только диалоговые сообщения логируем явно
+            # Only log dialog messages explicitly
             dialog_logger.info(f"[User -> Agent] {message}")
 
             response = await session.process_message(message)
@@ -185,7 +185,7 @@ async def llm_websocket(websocket: WebSocket, call_id: str):
                 response_dict["response_id"] = response_id
             await websocket.send_json(response_dict)
     except WebSocketDisconnect:
-        # logging.info("WebSocket disconnected")  # Убираем технический шум
+        # logging.info("WebSocket disconnected")  # Remove technical noise
         sessions.pop(call_id, None)
     except Exception as e:
         error_dict = {"error": str(e), "content_complete": True}
@@ -197,8 +197,8 @@ async def llm_websocket(websocket: WebSocket, call_id: str):
 
 @app.post("/call-reserve")
 async def call_reserve(request: ReservationRequest):
-    # Сформировать публичный LLM endpoint (ngrok url)
-    llm_url = f"{settings.host}/llm-websocket/{{call_id}}"  # Заменить на твой публичный адрес!
+    # Form a public LLM endpoint (ngrok url)
+    llm_url = f"{settings.host}/llm-websocket/{{call_id}}"  # Replace with your public address!
     metadata = {
         "date": request.date,
         "time": request.time,

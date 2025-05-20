@@ -176,7 +176,7 @@ async def test_agent_logic_with_emulated_pizzeria():
         chat_history.append({"role": "assistant", "content": response})
         await asyncio.sleep(0.1)  # to avoid spamming the LLM
 
-    # Можно добавить проверки ключевых слов в ответах агента
+    # You can add keyword checks in agent responses here
 
 
 @pytest.mark.asyncio
@@ -213,11 +213,11 @@ async def test_agent_uses_reservation_params():
         responses.append(response)
         await asyncio.sleep(0.1)
 
-    # Проверяем, что параметры встречаются хотя бы в одном из ответов
+    # Check that parameters appear in at least one of the agent's responses
     all_responses = " ".join(responses).lower()
     assert str(reservation_params["people"]) in all_responses or "people" in all_responses
     assert reservation_params["name"].split()[0].lower() in all_responses or "name" in all_responses
-    # Гибкая проверка даты: либо ISO, либо естественный формат
+    # Flexible date check: either ISO or natural format
     assert (
         reservation_params["date"] in all_responses or
         ("march" in all_responses and "20" in all_responses and "2024" in all_responses) or
