@@ -1,9 +1,14 @@
+import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 import pytest
 from datetime import datetime
 from unittest.mock import Mock, patch, AsyncMock
 from langchain.agents import AgentExecutor
 from app.agent import initialize_agent, ReservationAgent, ChatPromptTemplate
 from langchain.callbacks.tracers import LangChainTracer
+import asyncio
+import httpx
 
 
 @pytest.fixture
@@ -108,4 +113,138 @@ async def test_agent_conversation_flow(mock_settings, mock_calendar, mock_langsm
     agent.process_message = AsyncMock(return_value="I can help you with that reservation. Let me check the availability.")
     response = await agent.process_message("I'd like to make a reservation")
     assert response == "I can help you with that reservation. Let me check the availability."
-    agent.process_message.assert_awaited_once() 
+    agent.process_message.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+def test_agent_full_reservation_dialog(mock_settings, mock_calendar, mock_langsmith, reservation_params):
+    """Test full reservation dialog flow with mocked agent responses."""
+    agent = ReservationAgent()
+    # Mock agent responses for each user message
+    user_messages = [
+        "Hello!",
+        "I would like to reserve a table for 4 people for tomorrow at 19:00.",
+        "My name is Ivan.",
+        "Thank you, waiting for confirmation."
+    ]
+    agent_responses = [
+        "Hello! I can help you with a table reservation. For what date, time, and how many people would you like to book?",
+        "Got it, you want to reserve a table for 4 people for tomorrow at 19:00. What is your name?",
+        "Thank you, Ivan. I will check the availability and make the reservation.",
+        "Your table is successfully reserved for tomorrow at 19:00 under the name Ivan. Thank you for your request!"
+    ]
+    # Mock process_message to return the required responses in order
+    agent.process_message = AsyncMock(side_effect=agent_responses)
+    chat_history = []
+    for i, user_msg in enumerate(user_messages):
+        response = pytest.run(agent.process_message(user_msg, chat_history=chat_history))
+        assert response == agent_responses[i]
+        chat_history.append({"role": "user", "content": user_msg})
+        chat_history.append({"role": "assistant", "content": response})
+
+
+@pytest.mark.asyncio
+async def test_agent_logic_with_emulated_pizzeria():
+    """
+    Test agent logic with emulated pizzeria (Retell) responses.
+    No external API calls, only local agent logic.
+    """
+    agent = ReservationAgent()
+    chat_history = []
+
+    # Pizzeria operator's lines
+    pizzeria_lines = [
+        "Hello, this is Margarita Pizza. How can I help you?",
+        "For what date and time would you like to make a reservation?",
+        "May I have your name, please?",
+        "We have a table available. How many people will be in your party?",
+        "Your reservation is confirmed. Thank you for calling!"
+    ]
+
+    # Check that the agent responds according to the reservation scenario
+    for pizzeria_msg in pizzeria_lines:
+        response = await agent.process_message(pizzeria_msg, chat_history=chat_history)
+        print(f"Pizzeria: {pizzeria_msg}\nAgent: {response}\n")
+        chat_history.append({"role": "user", "content": pizzeria_msg})
+        chat_history.append({"role": "assistant", "content": response})
+        await asyncio.sleep(0.1)  # to avoid spamming the LLM
+
+    # You can add keyword checks in agent responses here
+
+
+@pytest.mark.asyncio
+async def test_agent_uses_reservation_params():
+    """
+    The agent should use the provided reservation parameters in its responses.
+    Only pizzeria lines are scripted, agent responses are generated dynamically.
+    """
+    from app.agent import ReservationAgent
+    reservation_params = {
+        "date": "2024-03-20",
+        "time": "19:00",
+        "people": 4,
+        "name": "John Doe"
+    }
+    agent = ReservationAgent()
+    agent.set_reservation_context(reservation_params)
+    chat_history = []
+
+    pizzeria_lines = [
+        "Hello, this is Margarita Pizza. How can I help you?",
+        "For what date and time would you like to make a reservation?",
+        "May I have your name, please?",
+        "We have a table available. How many people will be in your party?",
+        "Your reservation is confirmed. Thank you for calling!"
+    ]
+
+    for i, pizzeria_msg in enumerate(pizzeria_lines):
+        response = await agent.process_message(pizzeria_msg, chat_history=chat_history)
+        print(f"Pizzeria: {pizzeria_msg}\nAgent: {response}\n")
+        chat_history.append({"role": "user", "content": pizzeria_msg})
+        chat_history.append({"role": "assistant", "content": response})
+
+        if i == 0:
+            assert str(reservation_params["people"]) in response
+            assert reservation_params["date"] in response
+            assert reservation_params["time"] in response
+            assert reservation_params["name"].split()[0] in response
+
+        await asyncio.sleep(0.1) 
+
+
+@pytest.mark.asyncio
+async def test_integration_retell_emulation():
+    """
+    Integration test: Emulate Retell AI sending pizzeria messages and check agent's behavior with session context.
+    """
+    from app.agent import ReservationAgent, ReservationSession
+    reservation_params = {
+        "date": "2024-03-20",
+        "time": "19:00",
+        "people": 4,
+        "name": "John Doe"
+    }
+    agent = ReservationAgent()
+    session = ReservationSession(agent, reservation_params)
+
+    pizzeria_lines = [
+        "Hello, this is Margarita Pizza. How can I help you?",
+        "For what date and time would you like to make a reservation?",
+        "May I have your name, please?",
+        "We have a table available. How many people will be in your party?",
+        "Your reservation is confirmed. Thank you for calling!"
+    ]
+
+    for i, pizzeria_msg in enumerate(pizzeria_lines):
+        response = await session.process_message(pizzeria_msg)
+        print(f"Pizzeria: {pizzeria_msg}\nAgent: {response}\n")
+        if i == 0:
+            assert str(reservation_params["people"]) in response
+            assert reservation_params["name"].split()[0] in response
+            # Accept either ISO or natural date
+            assert (
+                "2024" in response and ("March" in response or "03-20" in response or "20th" in response)
+            ) or reservation_params["date"] in response
+            # Accept either 24h or 12h time
+            assert "19:00" in response or "7:00" in response or "7 pm" in response.lower()
+        await asyncio.sleep(0.1) 

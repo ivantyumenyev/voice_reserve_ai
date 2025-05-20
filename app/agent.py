@@ -16,8 +16,10 @@ def get_langsmith_client():
     return Client()
 
 class ReservationAgent:
-    """Agent for handling restaurant reservations."""
-    
+    """
+    Stateless agent factory for handling restaurant reservations.
+    This agent does NOT store any reservation data. All reservation/session data must be passed to ReservationSession.
+    """
     def __init__(self):
         self.settings = get_settings()
         tracer = LangChainTracer(
@@ -32,8 +34,7 @@ class ReservationAgent:
             callbacks=[tracer]
         )
         self.tools = self._create_tools()
-        self.agent = self._create_agent()
-    
+
     def _create_tools(self) -> List:
         """Create tools for the agent."""
         @tool
@@ -61,51 +62,50 @@ class ReservationAgent:
             }
         
         return [check_availability, make_reservation]
-    
-    def _create_agent(self) -> AgentExecutor:
-        """Create the agent with tools and prompt."""
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", """You are a helpful restaurant reservation assistant.
-            Your goal is to help customers make reservations at the restaurant.
-            Always be polite and professional.
-            Ask for necessary information if it's missing.
-            
-            You have access to the following tools:
-            - check_availability: Check if a table is available for a given date and party size
-            - make_reservation: Make a reservation with the provided details
-            
-            Use these tools to help customers make reservations."""),
+
+    def build_prompt(self, reservation_params: Dict[str, Any]) -> ChatPromptTemplate:
+        """
+        Build a session-specific prompt with reservation parameters.
+        The agent is always the caller, making a reservation with these details.
+        """
+        return ChatPromptTemplate.from_messages([
+            ("system", f"""You are a helpful restaurant reservation assistant.\nYou are calling the restaurant to make a reservation with the following details:\n- Date: {reservation_params.get('date', '')}\n- Time: {reservation_params.get('time', '')}\n- Number of people: {reservation_params.get('people', '')}\n- Customer name: {reservation_params.get('name', '')}\nYour goal is to make this reservation. Always be polite and professional.\nYou have access to the following tools:\n- check_availability: Check if a table is available for a given date and party size\n- make_reservation: Make a reservation with the provided details\nUse these tools to help you make the reservation."""),
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
         ])
-        
+
+    def create_agent_with_prompt(self, prompt: ChatPromptTemplate) -> AgentExecutor:
         agent = create_openai_tools_agent(
             llm=self.llm,
             tools=self.tools,
             prompt=prompt
         )
-        
         return AgentExecutor(
             agent=agent,
             tools=self.tools,
             verbose=True
         )
-    
-    async def process_message(
-        self,
-        message: str,
-        chat_history: List[Dict[str, str]] = None
-    ) -> str:
-        """Process a message and return the agent's response."""
-        if chat_history is None:
-            chat_history = []
-            
-        response = await self.agent.ainvoke({
+
+class ReservationSession:
+    """
+    Session for a single reservation dialog.
+    Stores reservation parameters and chat history. All context is session-local.
+    """
+    def __init__(self, agent: ReservationAgent, reservation_params: dict):
+        self.agent = agent
+        self.reservation_params = reservation_params
+        self.chat_history = []
+
+    async def process_message(self, message: str) -> str:
+        prompt = self.agent.build_prompt(self.reservation_params)
+        temp_agent = self.agent.create_agent_with_prompt(prompt)
+        response = await temp_agent.ainvoke({
             "input": message,
-            "chat_history": chat_history
+            "chat_history": self.chat_history
         })
-        
+        self.chat_history.append({"role": "user", "content": message})
+        self.chat_history.append({"role": "assistant", "content": response["output"]})
         return response["output"]
 
 def initialize_agent(reservation_params: Dict[str, Any]) -> AgentExecutor:
