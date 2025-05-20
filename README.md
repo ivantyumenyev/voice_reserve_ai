@@ -1,16 +1,17 @@
 # Voice Reserve AI
 
-An AI-powered restaurant reservation system that uses voice calls to handle table bookings automatically. The system integrates with Rettel.ai for voice calls, LangChain for intelligent conversation handling, and Google Calendar for reservation management.
+An AI-powered restaurant reservation system that uses voice calls to handle table bookings automatically. The system integrates with Rettel.ai for voice calls, LangChain for intelligent conversation handling, and is designed for Google Calendar integration (currently in-memory calendar logic, easily extendable).
 
 ## Features
 
 - 🎙️ Voice-based restaurant table reservation system
 - 🤖 AI-powered conversation handling with LangChain
 - 📞 Integration with Rettel.ai for voice calls
-- 📅 Google Calendar integration for reservation management
+- 📅 In-memory calendar management (Google Calendar integration ready)
 - 🔄 Real-time availability checking
 - 📊 Reservation management and tracking
 - 🔒 Secure handling of sensitive data
+- 🧑‍💻 LangSmith tracing for agent monitoring and debugging
 
 ## Tech Stack
 
@@ -18,7 +19,8 @@ An AI-powered restaurant reservation system that uses voice calls to handle tabl
 - **Framework**: FastAPI
 - **AI/ML**: LangChain, OpenRouter API
 - **Voice**: Rettel.ai SDK
-- **Calendar**: Google Calendar API
+- **Calendar**: In-memory (Google Calendar API ready)
+- **Tracing**: LangSmith
 - **Testing**: pytest
 - **Linting**: flake8
 - **Containerization**: Docker
@@ -28,7 +30,7 @@ An AI-powered restaurant reservation system that uses voice calls to handle tabl
 - Python 3.11 or higher
 - OpenRouter API key
 - Rettel.ai API key
-- Google Calendar API credentials
+- Google Calendar API credentials (for future integration)
 - Docker (optional)
 
 ## Setup
@@ -55,9 +57,9 @@ An AI-powered restaurant reservation system that uses voice calls to handle tabl
    ```bash
    cp .env.example .env
    ```
-   Edit `.env` and fill in your API keys and configuration.
+   Edit `.env` and fill in your API keys and configuration. **All sensitive data and configuration must be set via environment variables.**
 
-5. Set up Google Calendar credentials:
+5. (Optional) Set up Google Calendar credentials for future integration:
    - Place your `google_credentials.json` in the project root
    - Follow Google Calendar API setup instructions
 
@@ -84,26 +86,31 @@ An AI-powered restaurant reservation system that uses voice calls to handle tabl
 voice-reserve-ai/
 ├── app/
 │   ├── __init__.py         # Package initialization
-│   ├── main.py            # FastAPI application
-│   ├── agent.py           # LangChain agent implementation
-│   ├── calendar.py        # Calendar management
-│   ├── config.py          # Configuration management
-│   └── ...
-├── tests/                 # Test directory
-├── .cursor/              # Cursor IDE rules
-├── requirements.txt      # Project dependencies
-├── Dockerfile           # Container configuration
-├── .env.example         # Environment variables template
-├── .gitignore          # Git ignore rules
-└── README.md           # Project documentation
+│   ├── main.py             # FastAPI application and API endpoints
+│   ├── agent.py            # LangChain agent logic, tools, and LangSmith tracing
+│   ├── calendar.py         # In-memory reservation calendar logic (Google Calendar ready)
+│   ├── config.py           # Configuration and environment variable management
+├── tests/                  # All test files and fixtures
+│   ├── test_agent.py       # Agent logic and conversation flow tests
+│   ├── test_langsmith.py   # LangSmith tracing and integration tests
+│   ├── conftest.py         # Test fixtures and environment mocks
+├── test_live.py            # Live agent conversation test
+├── requirements.txt        # Main dependencies
+├── requirements-dev.txt    # Development dependencies (pytest, etc.)
+├── Dockerfile              # Container configuration
+├── .env.example            # Environment variables template
+├── .gitignore              # Git ignore rules
+├── .flake8                 # Linting configuration
+├── .cursor/                # Cursor IDE rules and project standards
+└── README.md               # Project documentation
 ```
 
 ## Environment Variables
 
-Create a `.env` file with the following variables:
+Create a `.env` file with the following variables (see `.env.example`):
 - `OPENROUTER_API_KEY`: Your OpenRouter API key
 - `RETELL_API_KEY`: Your Rettel.ai API key
-- `GOOGLE_CREDENTIALS_PATH`: Path to Google Calendar credentials
+- `GOOGLE_CREDENTIALS_PATH`: Path to Google Calendar credentials (for future integration)
 - `DEBUG`: Enable debug mode (True/False)
 - `HOST`: Server host (default: 0.0.0.0)
 - `PORT`: Server port (default: 8000)
@@ -116,10 +123,13 @@ Once the server is running, visit:
 
 ## Testing
 
-The project uses pytest for testing. Run tests with:
-```bash
-pytest
-```
+- All tests are located in the `tests/` directory and use `pytest`.
+- Use `pytest` for unit and integration tests:
+  ```bash
+  pytest
+  ```
+- Test coverage includes agent logic, calendar logic, LangSmith tracing, and live conversation flows.
+- Use `conftest.py` for fixtures and environment mocks.
 
 ## Docker
 
@@ -128,6 +138,12 @@ Build and run with Docker:
 docker build -t voice-reserve-ai .
 docker run -p 8000:8000 voice-reserve-ai
 ```
+
+## Cursor Rules
+
+- The project uses [Cursor](https://www.cursor.so/) for code navigation and standards.
+- All project rules and best practices are in `.cursor/rules/`.
+- See `README.md` and Cursor rules for up-to-date documentation and guidelines.
 
 ## Contributing
 
@@ -146,4 +162,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [LangChain](https://github.com/langchain-ai/langchain)
 - [Rettel.ai](https://retellai.com/)
 - [FastAPI](https://fastapi.tiangolo.com/)
-- [Google Calendar API](https://developers.google.com/calendar) 
+- [Google Calendar API](https://developers.google.com/calendar)
+- [LangSmith](https://smith.langchain.com/)
+- [Cursor](https://www.cursor.so/) 
