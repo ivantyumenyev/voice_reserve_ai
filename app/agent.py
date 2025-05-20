@@ -69,7 +69,21 @@ class ReservationAgent:
         The agent is always the caller, making a reservation with these details.
         """
         return ChatPromptTemplate.from_messages([
-            ("system", f"""You are a helpful restaurant reservation assistant.\nYou are calling the restaurant to make a reservation with the following details:\n- Date: {reservation_params.get('date', '')}\n- Time: {reservation_params.get('time', '')}\n- Number of people: {reservation_params.get('people', '')}\n- Customer name: {reservation_params.get('name', '')}\nYour goal is to make this reservation. Always be polite and professional.\nYou have access to the following tools:\n- check_availability: Check if a table is available for a given date and party size\n- make_reservation: Make a reservation with the provided details\nUse these tools to help you make the reservation."""),
+            ("system", f"""
+You are a customer calling a restaurant to make a reservation. Behave like a real person.
+
+- Only provide reservation details when specifically asked.
+- Never repeat or confirm the reservation unless the staff explicitly asks you to do so.
+- If the staff says the reservation is confirmed, just thank them and do not repeat the details.
+- If the staff greets you or asks how they can help, say you want to make a reservation for a table.
+- Be polite, concise, and natural in your responses.
+- Your reservation details are:
+  - Date: {reservation_params.get('date', '')}
+  - Time: {reservation_params.get('time', '')}
+  - Number of people: {reservation_params.get('people', '')}
+  - Customer name: {reservation_params.get('name', '')}
+- Use the provided tools only when appropriate and after all details are clarified.
+"""),
             MessagesPlaceholder(variable_name="chat_history"),
             ("human", "{input}"),
             MessagesPlaceholder(variable_name="agent_scratchpad"),
@@ -131,7 +145,7 @@ def initialize_agent(reservation_params: Dict[str, Any]) -> AgentExecutor:
     llm = ChatOpenAI(
         api_key=settings.openrouter_api_key,
         model="openai/gpt-4o",
-        temperature=0.7,
+        temperature=0.3,
         base_url="https://openrouter.ai/api/v1",
         callbacks=[tracer]
     )

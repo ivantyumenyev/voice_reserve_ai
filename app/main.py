@@ -7,6 +7,18 @@ import logging
 import httpx
 from app.config import get_settings
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s"
+)
+logging.getLogger().setLevel(logging.INFO)
+
+# Suppress noisy loggers from dependencies
+for logger_name in [
+    "httpx", "uvicorn", "uvicorn.error", "uvicorn.access", "fastapi", "asyncio"
+]:
+    logging.getLogger(logger_name).setLevel(logging.WARNING)
+
 app = FastAPI(
     title="Voice Reserve AI",
     description="AI-powered restaurant reservation system",
@@ -25,6 +37,14 @@ app.add_middleware(
 # Initialize the agent
 agent = ReservationAgent()
 sessions: Dict[str, ReservationSession] = {}
+
+# Создай отдельный логгер для диалогов
+dialog_logger = logging.getLogger("dialog")
+dialog_logger.setLevel(logging.INFO)
+dialog_handler = logging.StreamHandler()
+dialog_formatter = logging.Formatter('%(message)s')
+dialog_handler.setFormatter(dialog_formatter)
+dialog_logger.handlers = [dialog_handler]
 
 class ChatRequest(BaseModel):
     message: str
@@ -98,12 +118,16 @@ async def llm_websocket(websocket: WebSocket, call_id: str):
     Receives messages from Retell, processes them with the agent, and sends responses back in the expected format.
     """
     await websocket.accept()
+    # Send initial empty message so the user (pizzeria) can speak first
+    initial_response = {"content": "", "content_complete": True}
+    # logging.info(f"Sending to Retell: {initial_response}")  # Убираем технический шум
+    await websocket.send_json(initial_response)
     session = None
     try:
         while True:
             try:
                 data = await websocket.receive_json()
-                logging.info(f"Received JSON from Retell: {data}")
+                # logging.info(f"Received JSON from Retell: {data}")  # Убираем технический шум
             except Exception as e:
                 logging.error(f"Error receiving JSON: {e}")
                 break
@@ -111,12 +135,23 @@ async def llm_websocket(websocket: WebSocket, call_id: str):
             # On first message, extract reservation params and create session
             if not session:
                 reservation_params = data.get("metadata") or data.get("reservation_params")
-                if reservation_params:
-                    session = ReservationSession(agent, reservation_params)
-                    sessions[call_id] = session
-                else:
-                    await websocket.send_json({"error": "No reservation params provided.", "content_complete": True})
-                    continue
+                if not reservation_params:
+                    # Fallback for manual UI Retell test: use hardcoded test data
+                    reservation_params = {
+                        "date": "2024-03-20",
+                        "time": "19:00",
+                        "people": 4,
+                        "name": "John Doe"
+                    }
+                    logging.warning("No reservation params provided by Retell. Using fallback test data.")
+                session = ReservationSession(agent, reservation_params)
+                sessions[call_id] = session
+
+            # Only respond to 'response_required' interaction_type
+            interaction_type = data.get("interaction_type")
+            response_id = data.get("response_id")
+            if interaction_type != "response_required":
+                continue
 
             # Extract user message from transcript
             message = None
@@ -128,22 +163,35 @@ async def llm_websocket(websocket: WebSocket, call_id: str):
                         break
 
             if not message:
-                await websocket.send_json({"error": "No message provided.", "content_complete": True})
+                error_dict = {"error": "No message provided.", "content_complete": True}
+                logging.error(f"Sending error to Retell: {error_dict}")
+                if response_id is not None:
+                    error_dict["response_id"] = response_id
+                await websocket.send_json(error_dict)
                 continue
 
-            response = await session.process_message(message)
-            logging.info(f"Sending to Retell: {response}")
+            # Только диалоговые сообщения логируем явно
+            dialog_logger.info(f"[User -> Agent] {message}")
 
-            await websocket.send_json({
-                "response": response,
+            response = await session.process_message(message)
+
+            dialog_logger.info(f"[Agent -> User] {response}")
+
+            response_dict = {
+                "content": response,
                 "content_complete": True
-            })
+            }
+            if response_id is not None:
+                response_dict["response_id"] = response_id
+            await websocket.send_json(response_dict)
     except WebSocketDisconnect:
-        logging.info("WebSocket disconnected")
+        # logging.info("WebSocket disconnected")  # Убираем технический шум
         sessions.pop(call_id, None)
     except Exception as e:
+        error_dict = {"error": str(e), "content_complete": True}
         logging.error(f"WebSocket error: {e}")
-        await websocket.send_json({"error": str(e), "content_complete": True})
+        logging.error(f"Sending error to Retell: {error_dict}")
+        await websocket.send_json(error_dict)
         await websocket.close()
         sessions.pop(call_id, None)
 
