@@ -31,9 +31,11 @@ class Settings(BaseSettings):
     opening_hour: int = 11
     closing_hour: int = 22
     
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
+    model_config = {
+        "env_file": ".env",
+        "case_sensitive": True,
+        "extra": "allow"
+    }
 
 
 @lru_cache()

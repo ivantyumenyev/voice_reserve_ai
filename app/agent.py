@@ -16,9 +16,10 @@ class ReservationAgent:
     def __init__(self):
         self.settings = get_settings()
         self.llm = ChatOpenAI(
-            api_key=self.settings.openai_api_key,
-            model="gpt-4-turbo-preview",
-            temperature=0.7
+            api_key=self.settings.openrouter_api_key,
+            model="openai/gpt-4o",
+            temperature=0.7,
+            base_url="https://openrouter.ai/api/v1"
         )
         self.tools = self._create_tools()
         self.agent = self._create_agent()
@@ -108,8 +109,8 @@ def initialize_agent(reservation_params: Dict[str, Any]) -> AgentExecutor:
     
     # Initialize LLM with OpenRouter
     llm = ChatOpenAI(
-        api_key=settings.openai_api_key,
-        model="gpt-4-turbo-preview",
+        api_key=settings.openrouter_api_key,
+        model="openai/gpt-4o",
         temperature=0.7,
         base_url="https://openrouter.ai/api/v1"
     )
